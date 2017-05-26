@@ -1,5 +1,6 @@
 <?php
-namespace Siyahmadde;
+namespace ainzz;
+
 use GuzzleHttp\Client;
 
 /**
@@ -71,7 +72,6 @@ class Disk
             $time = ($data[3] - 50) + time();
             $date = date('YmdHis', $time);
             $result['expires_at'] = $date;
-
         } else {
             throw new Exception('An error occured while parsing token: ' . $gem);
         }
@@ -132,8 +132,6 @@ class Disk
 
         $request = $this->client->request('GET', $uri, ['headers' => $this->headers]);
         return $request->getBody()->getContents();
-
-
     }
 
     //The API returns a flat list of all files on the Disk in alphabetical order.
@@ -204,6 +202,17 @@ class Disk
     }
 
 
+    public function publishFile($filePath)
+    {
+        $uri = 'https://cloud-api.yandex.net/v1/disk/resources/publish?path=' . urlencode($filePath);
+        $request = $this->client->request('PUT', $uri,
+            [
+              'headers' => $this->headers,
+            ]);
+        return $request->getStatusCode();
+    }
+
+
 
 
 
@@ -251,7 +260,7 @@ class Disk
         $path = urlencode($path);
 
         $uri = 'https://cloud-api.yandex.net/v1/disk/resources/upload?path='.$path;
-        $request = $this->client->request('GET',$uri,['headers' => $this->headers]);
+        $request = $this->client->request('GET', $uri, ['headers' => $this->headers]);
         $response =  $request->getBody()->getContents();
         $response = json_decode($response);
         return $response->href;
@@ -262,25 +271,39 @@ class Disk
      * @param $file
      * @return int
      */
-    public function uploadFile($file)
+    public function uploadFile($localFile)
     {
-        $uri = $this->getUploadUrl($file);
+        $remoteFile = basename($localFile);
+        $uri = $this->getUploadUrl($remoteFile);
 
-        $headers['Content-Length'] = filesize($file);
+        $headers['Content-Length'] = filesize($localFile);
         $finfo = finfo_open(FILEINFO_MIME);
-        $mime = finfo_file($finfo, $file);
+        $mime = finfo_file($finfo, $localFile);
         $parts = explode(';', $mime);
         $headers['Content-Type'] = $parts[0];
-        $headers['Etag'] = md5_file($file);
-        $headers['Sha256'] = hash_file('sha256', $file);
+        $headers['Etag'] = md5_file($localFile);
+        $headers['Sha256'] = hash_file('sha256', $localFile);
 
-        $request = $this->client->request('PUT',$uri,
+        $request = $this->client->request('PUT', $uri,
             [
                 'headers' => $headers,
-                'body' => fopen($file, 'rb'),
+                'body' => fopen($localFile, 'rb'),
                 'expect' => true
             ]);
-        return $request->getStatusCode();
+        $status = $request->getStatusCode();
+        if ($status != 201) {
+            throw new \Exception('Could not upload new file');
+        }
+        $status = $this->publishFile($remoteFile);
+
+        if ($status != 200) {
+            throw new \Exception('Could not publish new file');
+        }
+        $lastUploaded = $this->latestUploads(array('limit' => 1, 'media_type' => 'video'));
+        $lastUploaded = json_decode($lastUploaded, true);
+
+
+        return $lastUploaded['items'][0]['public_url'];
     }
 
     public function uploadDir($dir)
@@ -304,21 +327,21 @@ class Disk
     public function downloadOwnFile($path)
     {
         $uri = 'https://cloud-api.yandex.net/v1/disk/resources/download?path='.$path;
-        $request = $this->client->request('GET',$uri,['headers' => $this->headers]);
+        $request = $this->client->request('GET', $uri, ['headers' => $this->headers]);
         $response = $request->getBody()->getContents();
         $href = json_decode($response)->href;
 
-        return copy($href,$path);
+        return copy($href, $path);
     }
 
     public function downloadFile($path)
     {
         $uri = 'https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key='.$path;
-        $request = $this->client->request('GET',$uri,['headers' => $this->headers]);
+        $request = $this->client->request('GET', $uri, ['headers' => $this->headers]);
         $response = $request->getBody()->getContents();
         $href = json_decode($response)->href;
         $name = md5(time());
-        copy($href,$name);
+        copy($href, $name);
         return $name;
     }
 
@@ -326,7 +349,7 @@ class Disk
     {
         $key = urlencode($key);
         $uri = 'https://cloud-api.yandex.net/v1/disk/public/resources/save-to-disk/?public_key='.$path;
-        $request = $this->client->request('POST',$uri,['headers' => $this->headers]);
+        $request = $this->client->request('POST', $uri, ['headers' => $this->headers]);
         $response = $request->getBody()->getContents();
         return $response;
     }
@@ -427,7 +450,4 @@ class Disk
     {
         $this->headers = $headers;
     }
-
-
-
 }
