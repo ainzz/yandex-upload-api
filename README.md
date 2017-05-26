@@ -5,7 +5,7 @@ This library is built to deal with Yandex Disk API.
 ### Installation
 
 ```sh
-composer require siyahmadde/yandex-disk-api
+composer require ainzz/yandex-upload-api
 ```
 
 
@@ -13,7 +13,7 @@ composer require siyahmadde/yandex-disk-api
 # Usage
 First you need to create an alias
 ```php
-use Siyahmadde\Disk;
+use ainzz\Disk;
 ```
   - Get an Id from Yandex then use that id to create an object from the class
 ```php
@@ -55,6 +55,5 @@ $disk->downloadOthersFile('url','whatever_you_want_to_name_it');
 $disk->saveToDisk('url');
 ```
  -- And many more, see [offical documentation]
- 
- [offical documentation]: https://tech.yandex.com/disk/api/concepts/about-docpage/
 
+ [offical documentation]: https://tech.yandex.com/disk/api/concepts/about-docpage/
